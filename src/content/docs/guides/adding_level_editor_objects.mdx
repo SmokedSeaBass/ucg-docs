@@ -4,18 +4,20 @@ description: How to add base-game (or brand new) objects to the level editor
 lastUpdated: true
 ---
 
-import { LinkButton, Card, Aside } from '@astrojs/starlight/components';
+import { Aside } from '@astrojs/starlight/components';
 
 import primitive_landmine_demo from '/videos/guides/level_editor_objects/primitive_landmine_demo.webm';
 import proper_landmine_demo from '/videos/guides/level_editor_objects/proper_landmine_demo.webm';
 import uncanny_explode_demo from '/videos/guides/level_editor_objects/uncanny_explode_demo.webm';
 import land_mine_toggle_demo from '/videos/guides/level_editor_objects/land_mine_toggle_demo.webm';
 
-> Last updated: 2026/09/10 for UCG v1.0.2
+> This guide was written for UCG v1.0.2
 
 Ever wanted to spice up your custom levels with some new gimmick?
 
 In this guide, we will port a singleplayer-only object (the land mine from 5-18) to the level editor and give it a new interesting interaction!
+
+![](../../../assets/guides/level_editor_objects/land_mine.png)
 
 :::note
 This guide assumes that you:
@@ -88,11 +90,11 @@ To say that our object "works" is only barely technically true. Depending on wha
 - The preview image doesn't appear when placing the object
 - The object can't be selected after it's placed
 
-Fixing these issues would require modifying the object itself. However, for compatibility reasons I recommend that we instead create a new "level editor compatible" version of the object that the level editor will use instead. This not only prevents our mod from having unintended side effects in the singleplayer mode, but also makes our mod less likely to conflict with other mods that affect the base game.
+Fixing these issues would require modifying the object itself. However, for compatibility reasons, I recommend that we instead create a new "level editor compatible" version of the object that the level editor will use instead. This not only prevents our mod from having unintended side effects in the singleplayer mode, but also makes our mod less likely to conflict with other mods that affect the base game.
 
 ### Duplicating the original object
 
-Let's start with duplicating our object's scene (`res://assetsNEW/scenes/objects/gimmicks/land_mine.tscn`), giving it a new name, and placing it in our mod's folder. Following the base game's naming convention (e.g. `water_death.tscn` and `water_deathEditor.tscn`), we will name our new scene `land_mineEditor.tscn`.
+Let's start with duplicating our object's scene (`res://assetsNEW/scenes/objects/gimmicks/land_mine.tscn`), giving it a new name, and placing it in our mod's folder. You can do this by right-clicking the file in Godot and choosing `Move/Duplicate to...`. Following the base game's naming convention (e.g. `water_death.tscn` and `water_deathEditor.tscn`), we will name our new scene `land_mineEditor.tscn`.
 
 Don't forget to also duplicate and rename the script file (`res://assetsNEW/scenes/objects/gimmicks/land_mine.gd`)!
 
@@ -100,7 +102,7 @@ Our mod folder should now look like this:
 
 ![](../../../assets/guides/level_editor_objects/duplicated_scene_and_script.png)
 
-Now let's open up our newly-duplicated scene. The root "LandMine" node is still pointing to the original `land_mind.gd` script, so let's fix that and change it to `land_mineEditor.gd`. Then, open up the script.
+Now let's open up our newly-duplicated scene. The root "LandMine" node is still pointing to the original `land_mind.gd` script, so let's fix that and change it to `land_mineEditor.gd`. Then, open up our new script.
 
 ![](../../../assets/guides/level_editor_objects/open_editor_script.png)
 
@@ -135,6 +137,8 @@ And with that, the level editor now uses our modded object instead of the base g
 
 :::caution
 At this point, levels created using the level editor will use our custom land mine object instead of referring to the base game object. This means that levels created with our modded object will not load properly if the mod is missing/disabled.
+
+Levels identify objects by their `.tscn` path, so renaming your object's scene file or mod as a whole will also cause issues for pre-existing levels.
 :::
 
 :::danger
@@ -186,7 +190,7 @@ Let's add an extra interaction to our land mine and give it an on/off toggle in 
 
 ### Coding the new behavior
 
-In the base game, only two entities can interact with the land mine: the player and the horse boss. We will modify our land mine so that Uncanny can also trigger and be blown up by the land mine.
+In the base game, only two entities can interact with the land mine: the player and the horse boss. We will modify our land mine so that Uncanny can also trigger the land mine and be blown up.
 
 The land mine's script is pretty small, so the relevant code is pretty easy to find:
 ```gd
@@ -239,7 +243,7 @@ func _on_detector_body_entered(body: Node2D) -> void :
 (...)
 ```
 
-Let's test it out. Uncanny goes over the land mine and... nothing?
+Testing it out, Uncanny goes over the land mine and... nothing happens?
 
 That's because we also need to set the "Detector"'s collision mask to include the collision layer that Uncanny is on: `Layer 3` (Ghost).
 
@@ -247,13 +251,13 @@ That's because we also need to set the "Detector"'s collision mask to include th
 
 Now if you run a test, Uncanny properly interacts with the land mine, but the explosion is completely silent! What gives?
 
-That's because the explosion sound is actually a part of the player's stuck-in-a-wall dying sequence and is attached to the player scene, not the land mine.
+That's because the explosion sound is actually a part of the player's "stuck-in-a-wall" dying sequence and is attached to the player scene, not the land mine.
 
 So let's give the land mine its own copy of the explosion by copy-pasting the `Sounds/WallDeath` node from the player scene (`res://assetsNEW/scenes/objects/player/player.tscn`) to the root of our `land_mineEditor.tscn` scene. Feel free to rename the node to something a bit more descriptive like "ExplosionSfx" to distinguish it from the explosion sprite.
 
 ![](../../../assets/guides/level_editor_objects/object_explosion_sfx.png)
 
-Finally let's add the relevant code. Since this explosion sound only needs to play when *Uncanny* interacts with the land mine, we'll put it here instead of the `explode()` function.
+Finally let's add the relevant code. Since this explosion sound only needs to play when *Uncanny* specifically interacts with the land mine, we'll put it here instead of the `explode()` function.
 
 ```diff lang='gd'
 // land_mineEditor.gd
@@ -272,50 +276,6 @@ And all the functionality is done! Uncanny dies a well-heard explosive death whe
   <source src={uncanny_explode_demo} type="video/webm" />
   Your browser does not support the video tag.
 </video>
-
-<details>
-<summary>Full code</summary>
-```gd
-// land_mineEditor.gd
-class_name LandMineEditor
-extends Node2D
-
-@export var can_uncanny_interact: bool = true
-
-var spent: = false
-
-func _ready() -> void :
-	$AnimationPlayer.seek(randf_range(0.0, 1.0))
-	$AnimationPlayer.speed_scale = randf_range(0.2, 0.6)
-
-func _on_detector_body_entered(body: Node2D) -> void :
-	if spent:
-		return
-
-	if body is HorseBoss:
-		spent = true
-		body.hit()
-		explode()
-	elif body is Player:
-		spent = true
-		body.level.death(Level.DEATH_TYPES.WALL_STUCK)
-		explode()
-	elif body is Ghost && can_uncanny_interact:
-		spent = true
-		$ExplosionSfx.play()
-		body.queue_free()
-		explode()
-
-func explode() -> void :
-	$PointLight2D.hide()
-	$Detector.monitoring = false
-	$Sprite.hide()
-	$Explosion.play(&"explode")
-	await $Explosion.animation_finished
-	queue_free()
-
-```
-</details>
 
 ### Adding the level editor settings for our object
 
@@ -352,12 +312,19 @@ func _on_detector_body_entered(body: Node2D) -> void :
 		$ExplosionSfx.play()
 		body.queue_free()
 		explode()
-(...)
+
+func explode() -> void :
+	$PointLight2D.hide()
+	$Detector.monitoring = false
+	$Sprite.hide()
+	$Explosion.play(&"explode")
+	await $Explosion.animation_finished
+	queue_free()
 ```
 
 Now open up the `levelEditor.tscn` scene and revisit the `Object Scenes` property in the Inspector. Click our land mine's `EditorObject` (should be item #24 if this is your first modded object).  Select the `Variables` field and then choose `Add Element`. In the newly created item, click `<empty>` and then `New editorVariable`. Finally, expand our new `editorVariable` and fill in the necessary fields.
-- `Name`: This is the editor variable's label in the level editor (e.g. "Max Speed", "Dir X", etc.). For this guide, we will put "Can Uncanny interact"
-- `Varname`: This is the object's internal script variable that the editor variable is linked to. In our example, this will be "can_uncanny_interact". Be sure to exactly match spelling/case-sensitivity!
+- `Name`: This is the variable's label in the level editor (e.g. "Max Speed", "Dir X", etc.). For this guide, we will put "Can Uncanny interact".
+- `Varname`: This is the internal script variable that the editor variable is linked to. In our example, this will be "can_uncanny_interact". Be sure to exactly match spelling/case-sensitivity!
 - `IsEnum`/`Is Bool`/`Enum Range`/`Enum Names`: These settings determine how the editor variable is input in the level editor. Since our option is a simple boolean, check `Is Bool` and leave the other fields blank.
 
 Our modified `EditorObject` should look like this:
@@ -375,13 +342,15 @@ Hop in the level editor and test your changes out! Uncanny should only trigger l
 There is currently a bug in UCG where certain object settings do not save properly when selecting multiple objects of the same type in a row. As a workaround, deselect (escape key) and then reselect objects you want to edit the settings of.
 </Aside>
 
+**Congratulations**, your mod is now feature-complete! Our last big task will be refactoring our changes to be best suited for mod exporting.
+
 ## Converting our changes into a mod script
 
-If you've read [mod script basics](/guides/modscript_basics/), you would understand that exporting our mod in its current state would lead to all sorts of compatibility issues, due to changes we made directly to `level_editor.tscn`. Let's convert these manual changes into code.
+If you've read [mod script basics](/guides/modscript_basics/), you would understand that, due to changes we made directly to `level_editor.tscn`, exporting our mod in its current state could lead to all sorts of compatibility issues with other mods. Let's convert these manual changes into self-contained executable code.
 
 As a reminder, the manual changes we made to the level editor scene were:
-- Adding a new `EditorObject` for our custom object to `levelEditor.objectScenes`
-- Adding a new entry to `levelEditor/HUD/tabs/objectsTab/ItemList` for our custom object
+- Adding a new `EditorObject` to `levelEditor.objectScenes`
+- Adding a new entry to `levelEditor/HUD/tabs/objectsTab/ItemList`
 
 Let's open up our mod's script at `res://mods/testmod/testmod.gd`. We can use the default code as a starting point:
 
@@ -404,7 +373,9 @@ func _ready() -> void :
 
 ```
 
-Instead of hooking to nodes during gameplay like in [Node Interception 101](/guides/modscript_basics/#node-interception-101), we will make our mod run during the game's startup. Since we want our logic to run just once, we'll put our code in `_ready()`. First, let's (pre)load the level editor `PackedScene` and instantiate it to get access to the packed nodes.
+Instead of hooking to nodes during active gameplay like in [Node Interception 101](/guides/modscript_basics/#node-interception-101), we will make our mod run during the game's initial startup. Since we want our logic to run just once, we'll put our code in the `_ready()` function.
+
+First, let's (pre)load the level editor `PackedScene` and instantiate it to get access to the packed nodes.
 
 ```diff lang='gd'
 // testmod.gd
@@ -423,7 +394,7 @@ extends Node
 func _ready() -> void :
 -	print("testmod: post-initialization")
 +	var level_editor_packed_scene: = preload("res://assetsNEW/scenes/game/menus/leveleditor/level_editor.tscn")
-+	print("[EditorLandMine] Patching '%s'..." % level_editor_packed_scene.resource_path)
++	print("testmod: Patching '%s'..." % level_editor_packed_scene.resource_path)
 +	var level_editor_node: = level_editor_packed_scene.instantiate() as levelEditor
 ```
 
@@ -454,7 +425,7 @@ For the `ItemList` change, navigate to the node at `HUD/tabs/objectsTab/ItemList
 
 func _ready() -> void :
 	var level_editor_packed_scene: = preload("res://assetsNEW/scenes/game/menus/leveleditor/level_editor.tscn")
-	print("[EditorLandMine] Patching '%s'..." % level_editor_packed_scene.resource_path)
+	print("testmod: Patching '%s'..." % level_editor_packed_scene.resource_path)
 	var level_editor_node: = level_editor_packed_scene.instantiate() as levelEditor
 	# Object Scenes
 	var land_mine_editor_object: = preload("res://mods/testmod/land_mineEditor_properties.tres")
@@ -465,7 +436,7 @@ func _ready() -> void :
 +	level_editor_object_list.add_item("Land mine", land_mine_item_texture)
 ```
 
-One strength of having our changes as GDScript is that we can check the important caveat that our land mine has the same entry in both lists. If our `ItemList` and `objectScenes` are different sizes, we know something went wrong.
+One strength of having our changes as GDScript is that we can monitor the important caveat that our land mine has the same entry in both lists. If our `ItemList` and `objectScenes` are different sizes, we know something went wrong.
 
 After that, all that's left is to pack our node changes back into the source `PackedScene`.
 
@@ -485,7 +456,7 @@ func _ready() -> void :
 	var level_editor_object_list: = level_editor_node.get_node("HUD/tabs/objectsTab/ItemList") as ItemList
 	level_editor_object_list.add_item("Land mine", land_mine_item_texture)
 +	assert(level_editor_object_list.item_count == level_editor_node.objectScenes.size(),
-+		"testmod: EditorObject and ItemList entry indicies do not match!")
++		"testmod: EditorObject and ItemList entry indices do not match!")
 +	level_editor_packed_scene.pack(level_editor_node)
 +	print("testmod: main initialization complete")
 ```
@@ -495,32 +466,39 @@ Now launch the project and check that our land mine still works as intended. You
 ![](../../../assets/guides/level_editor_objects/mod_script_logs.png)
 
 :::note
-If your custom object is not showing in the level editor and no debug statements are getting logged, make sure that you have "Mods Enabled" checked in the game settings and that the test mod is activated. User-specific data/settings are shared between all instances of UCG, so for testing be sure to disable any other mods you might have enabled from your personal copy of UCG.
+If your custom object is not showing up in the level editor and no debug statements are getting logged, make sure that you have "Mods Enabled" checked in the game settings and that the test mod is activated.
 
 ![](../../../assets/guides/level_editor_objects/mods_enabled.png)
+
+User-specific data/settings are shared between all instances of UCG, so for testing be sure to disable any other mods you might have enabled from your personal copy of UCG.
 :::
 
 ## Conclusion
 
-And with that, your mod is complete! Thank you for following along, and I hope you learned something new!
+And with that, your very first custom level editor object mod is complete and ready for exporting! Thank you for following along, and I hope you learned something new!
 
+:::tip
 To package your mod so that other people can play it, see [this page](/getting-started/exporting/) on how to export your mod.
+:::
 
+:::tip
 To spice up the appearance of your mod (and the mod settings page in general), check out [Cooler Mods](/resources/cooler_mods/) by Jell-O.
+:::
 
 ## FAQ and Troubleshooting
 
 <details>
 <summary>My mod doesn't seem to be doing anything!</summary>
-- In the game's settings, make sure "Mods Enabled" is enabled and that the test mod is enabled.
-
-![](../../../assets/guides/level_editor_objects/mods_enabled.png)
-- If you haven't exported your mod yet, make sure you are launching your game through Godot's `Run Project` button and not via some personal copy of the `.exe`
+- In the settings menu of UCG, make sure "Mods Enabled" is enabled and that the test mod is enabled.
+- If you haven't exported your mod yet, make sure you are launching your game through Godot's `Run Project` button and not via an executable copy of the game
+- If you have exported your mod AND are launching the game through Godot, there may be a mod ID conflict between the mod being both in your user directory `mods/` folder and in the Godot project. Consider either:
+	- Removing the mod from your user directory `mods/` folder
+	- Changing the mod's ID in either the Godot project's `mods.json` or your exported mod's `mods.json`
 </details>
 
 <details>
 <summary>My custom object is showing up twice in the level editor!</summary>
-You likely have a mix of manual scene changes and mod script code. I recommend making a [fresh decompiled copy of UCG](/getting-started/decomp/) and copying your `mods` folder and `mods.json` there. This will undo any changes you made to vanilla assets.
+You likely have a mix of manual scene changes and mod script code. I recommend making a [fresh decompiled copy of UCG](/getting-started/decomp/) and copying your project's `mods/` folder and `mods.json` there. This will undo any changes you made to vanilla assets.
 </details>
 
 <details>
